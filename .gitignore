@@ -1,6 +1,10 @@
 #Folders
 build/
 dist/
+nbproject/private
 
 #Build Residue
 *.map
+.DS_Store
+*.mk
+nbproject/Makefile-*

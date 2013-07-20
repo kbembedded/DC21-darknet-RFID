@@ -47,7 +47,7 @@
         <platformTool>Simulator</platformTool>
         <languageToolchain>MPASMWIN</languageToolchain>
         <languageToolchainVersion>5.51</languageToolchainVersion>
-        <platform>3</platform>
+        <platform>4</platform>
       </toolsSet>
       <compileType>
         <linkerTool>
@@ -82,12 +82,8 @@
         <property key="hex-output-format" value="INHX32"/>
         <property key="map-file" value="&quot;$(BINDIR_)$(TARGETBASE).map&quot;"/>
       </MPASMWIN-LD>
-      <PICkit2PlatformTool>
-        <property key="pk2settings.setvddvoltage" value="5.00"/>
-        <property key="tracecontrol.disablemacros" value="true"/>
-        <property key="tracecontrol.medium" value="0"/>
-        <property key="tracecontrol.select" value="0"/>
-      </PICkit2PlatformTool>
+      <Simulator>
+      </Simulator>
       <mpasmsuite>
         <property key="absolute-mode" value="true"/>
         <property key="eeprom-width" value="8"/>
