@@ -6,37 +6,29 @@
  ;;                                                                          ;;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+#include "p12f683.inc"	
+#include "RFID_Emulator.inc"
+#include "../Common/RFID_Emulator_io.inc"
+#include "../Common/RFID_Emulator_misc.inc"
+#include "../Common/RFID_Emulator_rf.inc"
 
+__CONFIG _CP_ON & _CPD_OFF & _WDT_OFF & _BOD_OFF & _PWRTE_ON & _INTRC_OSC_NOCLKOUT & _MCLRE_ON & _IESO_OFF & _FCMEN_OFF
 
+EXTERN  _initIO
+EXTERN  _pauseX10uS, _pauseX1mS
+EXTERN  _initRF
+EXTERN  _writeEEPROM, PARAM1
+EXTERN  _ISRTimer1RF, _start_PLAY
 
-	#include "p12f683.inc"	
-	#include "RFID_Emulator.inc"
-	#include "../Common/RFID_Emulator_io.inc"
-	#include "../Common/RFID_Emulator_misc.inc"
-	#include "../Common/RFID_Emulator_rf.inc"
+GLOBAL  EE_MEMORY_SIZE, EE_CLOCKS_PER_BIT, EE_TAG_MODE, EE_RFID_MEMORY
+GLOBAL  FLAGS
 
-
-	__CONFIG       _CP_ON & _CPD_OFF & _WDT_OFF & _BOD_OFF & _PWRTE_ON & _INTRC_OSC_NOCLKOUT & _MCLRE_ON & _IESO_OFF & _FCMEN_OFF
-
-	EXTERN	_initIO
-	EXTERN	_pauseX10uS, _pauseX1mS
-	EXTERN  _initRF
-	EXTERN _writeEEPROM, PARAM1
-
-	EXTERN _ISRTimer1RF, _start_PLAY
-
-	GLOBAL EE_MEMORY_SIZE, EE_CLOCKS_PER_BIT, EE_TAG_MODE, EE_RFID_MEMORY
-
-	GLOBAL FLAGS
-
-
-
-#DEFINE NUM_BIT_MANCHESTER 2			; Señala en que bit manchester nos encontramos (el primero == 0, o el segundo == 1)
-#DEFINE BIT_BASE		   3			; Almacenamos aqui el bit en banda base (no demodulado manchester) 
-#DEFINE PROCESAR_BIT_BASE  4			; Indicamos que hay un bit en banda base (no demodulado manchester) que procesar
-#DEFINE	BIT 5							; Bit demodulado para ser procesado
-#DEFINE GRABADO				0
-#DEFINE CAPTURE_MODE	    7			; Indica si hay que capturar
+#DEFINE NUM_BIT_MANCHESTER 2 ; Flag: Which manchester bit are we on?
+#DEFINE BIT_BASE		   3 ; Flag: Value of base band.
+#DEFINE PROCESS_BIT_BASE   4 ; Flag: Are we ready to process?
+#DEFINE	BIT                5 ; Flag: Does this bit need to be demodulated?
+#DEFINE RECORD             0 ; Flag: Are we writing to RFID Memory?
+#DEFINE CAPTURE_MODE       7
 
 
 
@@ -53,7 +45,7 @@ RFID_MEMORY	res	.11
 	UDATA_SHR
 
 
-FLAGS		RES	.1			; Flags varios. Ver los defines para los flags mas abajo.
+FLAGS		RES	.1			; Flags defined below.
 TMP			RES	.1
 
 W_TEMP		RES	.1
@@ -61,15 +53,15 @@ STATUS_TEMP	RES	.1
 
 EEPROM_DIRECCION RES .1
 
-PAQUETE_MANCHESTER	RES	.1		; Variable donde almacenamos los dos bits banda base que forman un bit manchester
-CONTADOR_BITS_PAQUETE RES .1	; LLeva la cuenta de los bits que esperamos recibir para procesar el paquete
+MANCHESTER_PACKET	RES	.1		; Contains two baseband bits
+MANCHESTER_BIT_IDX  RES .1	    ; Manchester bit index
 
-PAQUETE		RES	.1
+PACKET		RES	.1
 
-CONTADOR_NIBBLES	RES	.1
+NIBBLE_CNT	RES	.1
 TMP2		RES	.1
-PARIDAD		RES	.1
-PARIDAD_COLUMNA	RES	.1
+PARITY		RES	.1
+COLUMN_PARITY	RES	.1
 FLAGS2		RES	.1
 CONFIG_CLOCKS_PER_BIT	RES .1
 
@@ -163,7 +155,7 @@ _main
 
 	CLRF	TMP
 	CLRF	FLAGS
-	CLRF	PAQUETE_MANCHESTER
+	CLRF	MANCHESTER_PACKET
 
 
 	BANKSEL	CMCON0
@@ -175,7 +167,7 @@ _main
 
 	BANKSEL	TMP
 
-	; Pausamos un poco 
+	; Short Delay
 
 	MOVLW 	.10
 	MOVWF	TMP		
@@ -186,31 +178,31 @@ _main
 	
 
 	movlw	.8
-	movwf	CONTADOR_NIBBLES
+	movwf	NIBBLE_CNT
 	
-	; Comprobamos si recibimos el par cero-uno ocho veces. Si hay algun error, salimos.
-_comprobarCabecera
+	; Check if we receive 01 pair eight times. Return on error.
+_check_header
 
-	BTFSS	FLAGS, PROCESAR_BIT_BASE
+	BTFSS	FLAGS, PROCESS_BIT_BASE
 	GOTO	$-1
-	BCF		FLAGS, PROCESAR_BIT_BASE
-	BTFSC	FLAGS, BIT_BASE				; Esperamos un cero
-	GOTO	_main						; No es un cero, volvemos a empezar...
+	BCF		FLAGS, PROCESS_BIT_BASE
+	BTFSC	FLAGS, BIT_BASE				; 0 expected
+	GOTO	_main						; If not, start over
 
-	BTFSS	FLAGS, PROCESAR_BIT_BASE
+	BTFSS	FLAGS, PROCESS_BIT_BASE
 	GOTO	$-1
-	BCF		FLAGS, PROCESAR_BIT_BASE
-	BTFSS	FLAGS, BIT_BASE				; Esperamos un uno
-	GOTO	_main						; No es un uno, volvemos a empezar...
+	BCF		FLAGS, PROCESS_BIT_BASE
+	BTFSS	FLAGS, BIT_BASE				; 1 expected
+	GOTO	_main						; If not, start over
 
-	DECFSZ	CONTADOR_NIBBLES, F
-	GOTO	_comprobarCabecera
+	DECFSZ	NIBBLE_CNT, F
+	GOTO	_check_header
 
 ;LED1_ON
 _test
-;BTFSS	FLAGS, PROCESAR_BIT_BASE
+;BTFSS	FLAGS, PROCESS_BIT_BASE
 ;GOTO	$-1
-;BCF		FLAGS, PROCESAR_BIT_BASE
+;BCF		FLAGS, PROCESS_BIT_BASE
 ;BTFSC	FLAGS, BIT_BASE				
 ;LED1_ON
 ;BTFSS	FLAGS, BIT_BASE				
@@ -218,108 +210,109 @@ _test
 ;LED1_TOGGLE
 ;GOTO _test
 
-	; Apuntamos FSR a la zona de memoria donde almacenaremos el mapa de memoria RFID
+	; Point FSR to where we store RFID memory.
 	MOVLW	RFID_MEMORY
 	MOVWF	FSR
 
-	; Recibiremos 10 paquetes de datos + 1 paquete de paridad de columnas
+	; We receive 10 data packets and 1 parity packet
 	MOVLW	.11
-	MOVWF	CONTADOR_NIBBLES
+	MOVWF	NIBBLE_CNT
 
-	; Cada paquete tiene 4 bits de datos y uno de paridad 
+	; Each packet has 4 data bits and one parity bit.
 	MOVLW	.5
-	MOVWF	CONTADOR_BITS_PAQUETE
+	MOVWF	MANCHESTER_BIT_IDX   ; Reset index for next packet (5 bits)
 	
-	CLRF	PAQUETE
-	CLRF	PARIDAD
-	CLRF	PARIDAD_COLUMNA
+	CLRF	PACKET               ; Clear all variables
+	CLRF	PARITY
+	CLRF	COLUMN_PARITY
 
 	
-	; Vamos esperando los distintos bits y los decodificamos en Manchester
+; Wait for the bits, then decode Manchester
+_wait_for_base_bit
+    ; Wait for the bit...
+	BTFSS	FLAGS, PROCESS_BIT_BASE
+	GOTO 	_wait_for_base_bit
+    ; Once we have the bit, we go ahead and process it
+	GOTO	_process_base_bit
 
-_esperando_bit_base						
+
+; If we reach this point, we have a bit to process
+_process_manchester_bit
+
+
+; So let's get to it...
+
+
+_process_packet
 	
-	BTFSS	FLAGS, PROCESAR_BIT_BASE		;Esperamos a que haya un bit en banda base para procesar
-	GOTO 	_esperando_bit_base
-
-	GOTO	_procesarBitBase				; Procesamos el bit
-
-
-	; Si llegamos a este punto, es por que tenemos un bit a procesar
-_procesar_bit_Manchester
-
-
-
-
-
-_procesando_paquete
-	
-	; Ponemos el flag Status al mismo valor que el bit recibido
+	; Set status flag to received bit.
 	BCF		STATUS, C
 	BTFSC	FLAGS, BIT
 	BSF		STATUS, C
 
-	RLF		PAQUETE, F		;Insertamos por la derecha el paquete
-	
-	BTFSC	FLAGS, BIT		; Si el bit es un 1, incrementamos la variable paridad
-	INCF	PARIDAD, F
+    ; Add bit to processed packet.
+	RLF		PACKET, F		; Rotate packet left to make room.
+	BTFSC	FLAGS, BIT		; If bit is 1...
+	INCF	PARITY, F       ; We increment the parity bit.
 
-	DECFSZ	CONTADOR_BITS_PAQUETE, F	
-	GOTO	_esperando_bit_base		;Todavia tenemos que recibir mas bits de este paquete
+	DECFSZ	MANCHESTER_BIT_IDX, F   ; If we still have more bits,
+	GOTO	_wait_for_base_bit		; wait for the next one.
 
-	; Este paquete esta finalizado.
+	; The packet is complete.
 
+    ; XOR the packet with the column parity.
+	;     Vamos xoreando los paquetes para comprobar la paridad de columnas
+    ;     "So what does -eando mean? we're doing it?"
+	MOVFW	PACKET
+	XORWF	COLUMN_PARITY, F
 
-	; Vamos xoreando los paquetes para comprobar la paridad de columnas
-	MOVFW	PAQUETE
-	XORWF	PARIDAD_COLUMNA, F
-
-	; Si este paquete es el ultimo, no tenemos que comprobar la paridad de fila
-	DECF	CONTADOR_NIBBLES, W
+    ; If this is the last packet, we don't need to save it.
+	DECF	NIBBLE_CNT, W
 	BTFSC	STATUS, Z		
-	GOTO	_salvarPaquete
+	GOTO	_save_packet
 
-	; Comprobamos la paridad de fila
-	BTFSC	PARIDAD, 0
-	GOTO	_main					; Paridad no es par! Error!
+	; Check the parity.
+	BTFSC	PARITY, 0
+	GOTO	_main					; Parity is not even! Error!
 
 
-_salvarPaquete
+_save_packet
 
-	; Salvamos paquete PERO descartando el bit de paridad
-	BANKISEL RFID_MEMORY			; Acceso indirecto al banco 0
-	MOVFW	PAQUETE
-	MOVWF	INDF					;<- No perdemos el bit de acarreo
-	;BCF		STATUS, C				; Limpiamos el carry para rotar el registro
-	;RRF		INDF, F					; y perder el BIT de paridad.
+	; Save packet, discard parity bit.
+	BANKISEL RFID_MEMORY			; Indirect access to bank 0
+	MOVFW	PACKET
+	MOVWF	INDF					;<- Do not lose carry bit
+	;BCF		STATUS, C				; Clear the carry to rotate the register
+	;RRF		INDF, F					; Lose the parity bit
 	INCF	FSR,F
 
-	; Preparamos las variables para el siguiente paquete
-	MOVLW	.5						; Proximo paquete
-	MOVWF	CONTADOR_BITS_PAQUETE
-	CLRF	PAQUETE
-	CLRF	PARIDAD
+	; Reset the variables for the next packet.
+	MOVLW	.5
+	MOVWF	MANCHESTER_BIT_IDX
+	CLRF	PACKET
+	CLRF	PARITY
 
-	; Comprobamos si quedan mas paquetes
-	DECFSZ	CONTADOR_NIBBLES, F		; Todavia nos queda paquetes por recibir
-	GOTO	_esperando_bit_base
+	; Check if we have more packets.
+	DECFSZ	NIBBLE_CNT, F		; If we have more nibs, wait for them.
+	GOTO	_wait_for_base_bit
 
-	;HEMOS RECIBIDO TODOS LOS PAQUETES
+	; Otherwise, we have received all the packets.
 
-	; Paramos las interrupciones
+	; Stop interruptions.
 	call	_stopRX
-	bcf INTCON,GIE ;Disable INTs
+	bcf     INTCON,GIE ;Disable INTs
 
-
-	; Comprobamos la paridad de columna
-	MOVFW	PARIDAD_COLUMNA
+	; Check the parity for our received data.
+	MOVFW	COLUMN_PARITY
 	ANDLW	b'11111110'
 	BTFSS	STATUS, Z				;
-	GOTO	_main					; Error! No pasamos la paridad de columna
+	GOTO	_main					; Error! We do not have parity!
 
-	BTFSS	FLAGS2, GRABADO
-	CALL	grabar_RFID
+    ; Check if we need to write to RFID memory
+	BTFSS	FLAGS2, RECORD
+   	CALL	grabar_RFID
 
+    ; If not, we're done.
 	GOTO	_main
 
 
@@ -356,10 +349,10 @@ _grabar_RFID_BUCLE
 	
 
 	BANKSEL	FLAGS2
-	BSF		FLAGS2, GRABADO
+	BSF		FLAGS2, RECORD
 
 	
-	LED1_ON					; Detenemos la ejecucion y encendemos el LED
+	LED1_ON					; Stop execution and turn on LED.
 	GOTO	$-1
 
 	return 
@@ -372,72 +365,69 @@ _grabar_RFID_BUCLE
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;                                                                       ;;;;
-;;                             _procesarBitBase                               ;;
+;;                             _process_base_bit                             ;;
 ;;                                                                           ;;
-;;    Procesarmos el bit en banda base que nos ha llegado.                   ;;
+;;    Process the received baseband bit.                                     ;;
 ;;                                                                           ;;
-;;	  ENTRADA: FLAGS:PROCESAR_BIT_BASE ; FLAGS:BIT_BASE                      ;;
+;;	  ENTRADA: FLAGS:PROCESS_BIT_BASE ; FLAGS:BIT_BASE                      ;;
 ;;    VARIABLES:                                                             ;;
 ;;    RETORNO:                                                               ;;
 ;;                                                                           ;;
 ;;;;                                                                       ;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-_procesarBitBase
+_process_base_bit
 
-	BCF		FLAGS, PROCESAR_BIT_BASE
+	BCF		FLAGS, PROCESS_BIT_BASE        ; Clear process flag
 
 	;BTFSC	FLAGS, BIT_BASE
 	;LED1_ON
 	;BTFSS	FLAGS, BIT_BASE
 	;LED1_OFF
-		
-	BCF		STATUS, C						; Vamos insertando el bit en banda base dentro del paquete manchester (2 bits)
+
+    ; Set the bit in the Manchester packet
+	BCF		STATUS, C						
 	BTFSC	FLAGS, BIT_BASE
 	BSF		STATUS, C
-	RLF		PAQUETE_MANCHESTER, F
+	RLF		MANCHESTER_PACKET, F
 	
-	BTFSC	FLAGS, NUM_BIT_MANCHESTER		; Comprobamos si es el segudo bit manchester (fin del paquete
-	GOTO	_demodular_paquete_manchester
+	BTFSC	FLAGS, NUM_BIT_MANCHESTER	  ; If this is the second bit...
+	GOTO	_demodulate_manchester_packet ; We have both bits, demodulate.
 	
-	
-	; Es el primer bit
-
-	BSF		FLAGS, NUM_BIT_MANCHESTER		; Indicamos que vamos a por el segundo bit
-	GOTO	_esperando_bit_base				; Retornamos a esperar el proximo bit
+	; This was only the first bit, prepare to receive the second.
+	BSF		FLAGS, NUM_BIT_MANCHESTER	  ; Set Manchester flag for second bit.
+	GOTO	_wait_for_base_bit			  ; Return and wait for next bit.
 	
 
-_demodular_paquete_manchester
+_demodulate_manchester_packet
 
-	BCF		FLAGS, NUM_BIT_MANCHESTER		; Limpiamos el indicador del bit del paquete manchester
+	BCF		FLAGS, NUM_BIT_MANCHESTER     ; Clear Mancehster flag for next packet.
 
-
-	; Vamos a comprobar si es un bit correcto (01 o 10)
-	
+	; Check which bit is set, and demodulate accordingly.
 	MOVLW	b'00000001'
-	SUBWF	PAQUETE_MANCHESTER, W
+	SUBWF	MANCHESTER_PACKET, W
 	BTFSC	STATUS, Z
-	GOTO	_demodular_paquete_manchester_1
+	GOTO	_demodulate_manchester_bit_1
 	
 	MOVLW	b'00000010'
-	SUBWF	PAQUETE_MANCHESTER, W
+	SUBWF	MANCHESTER_PACKET, W
 	BTFSC	STATUS, Z
-	GOTO	_demodular_paquete_manchester_0
+	GOTO	_demodulate_manchester_bit_0
 	
-	; ERROR! No es un manchester. Sera un error!? Desactivamos las interrupciones.
-;LED1_OFF
-	GOTO	_main						; Procesamos el error
-	
-_demodular_paquete_manchester_1
-	CLRF	PAQUETE_MANCHESTER
+	; ERROR! Neither manchester bit was set. Something bad happened!
+    ;LED1_OFF
+	GOTO	_main                   ; Get out.
+
+_demodulate_manchester_bit_1
+	CLRF	MANCHESTER_PACKET
 	BSF		FLAGS, BIT
-	GOTO	_procesar_bit_Manchester				; Retornamos a esperar el proximo bit
+	GOTO	_process_manchester_bit ; Return and wait for next bit.
 	
 	
-_demodular_paquete_manchester_0
-	CLRF	PAQUETE_MANCHESTER
+_demodulate_manchester_bit_0
+	CLRF	MANCHESTER_PACKET
 	BCF		FLAGS, BIT
-	GOTO	_procesar_bit_Manchester				; Retornamos a esperar el proximo bit
+	GOTO	_process_manchester_bit ; Return and wait for next bit.
 
 
 
@@ -577,18 +567,18 @@ _ISRTimer1RF_RX
 	CLRF	TMR1L						; TMR1L = 0
 	SUBWF	TMR1L, F
 
-	BSF		FLAGS, PROCESAR_BIT_BASE		; Avisamos de que hay un bit por procesar
+	BSF		FLAGS, PROCESS_BIT_BASE		; Mark bit as ready to process
 
 	 
 	BTFSC	CMCON0, COUT				; Muestreado un 1
 	GOTO	_uno
 	
 	
-
-_cero
-	;LED1_OFF
-	BCF		FLAGS, BIT_BASE
-	RETURN
+; Not called anywhere else...
+;_cero
+;	;LED1_OFF
+;	BCF		FLAGS, BIT_BASE
+;	RETURN
 	
 _uno
 	;LED1_ON

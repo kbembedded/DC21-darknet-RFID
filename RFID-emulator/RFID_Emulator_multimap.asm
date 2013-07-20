@@ -108,7 +108,7 @@ _byteloop
 	MOVFW	INDF					; Get the first byte to transmit
 	MOVWF	TX_BYTE
 
-	RLF		TX_BYTE, F				; Giramos a la izquierda
+	RLF		TX_BYTE, F				; Rotate left thrice-wise
 	RLF		TX_BYTE, F
 	RLF		TX_BYTE, F
 
