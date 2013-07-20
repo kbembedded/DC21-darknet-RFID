@@ -6,7 +6,7 @@
 '   E-mail.... support@parallax.com
 '   Updated... 15 Dec 2009
 '
-'   {$STAMP BS2pe}
+'   {$STAMP BS2}
 '   {$PBASIC 2.5}
 '
 ' =========================================================================
@@ -26,8 +26,8 @@
 
 ' -----[ I/O Definitions ]-------------------------------------------------
 
-RFID_TX    PIN  0    ' Connects to RFID R/W Module SIN
-RFID_RX    PIN  1    ' Connects to RFID R/W Module SOUT
+RFID_TX    PIN  14    ' Connects to RFID R/W Module SIN
+RFID_RX    PIN  12    ' Connects to RFID R/W Module SOUT
 
 
 ' -----[ Constants ]-------------------------------------------------------
