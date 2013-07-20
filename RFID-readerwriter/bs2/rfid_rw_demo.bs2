@@ -1,0 +1,182 @@
+' =========================================================================
+'
+'   File...... rfid_rw_demo.bs2
+'   Purpose... Demonstration code for the Parallax RFID Read/Write Module
+'   Author.... Joe Grand, Grand Idea Studio, Inc. [www.grandideastudio.com]
+'   E-mail.... support@parallax.com
+'   Updated... 15 Dec 2009
+'
+'   {$STAMP BS2pe}
+'   {$PBASIC 2.5}
+'
+' =========================================================================
+
+
+' -----[ Program Description ]---------------------------------------------
+'
+' This program demonstrates the capabilities of the Parallax RFID Read/
+' Write Module.
+'
+' Compatible with EM Microelectronic EM4x50 1kbit R/W 125kHz tags.
+' These tags can be used in a number of ways:
+' 1) Read-only by reading the tag's unique, non-changing serial number
+' 2) Read/write up to 116 bytes of user data (publicly accessible)
+' 3) Read/write up to 116 bytes of user data (password protected)
+
+
+' -----[ I/O Definitions ]-------------------------------------------------
+
+RFID_TX    PIN  0    ' Connects to RFID R/W Module SIN
+RFID_RX    PIN  1    ' Connects to RFID R/W Module SOUT
+
+
+' -----[ Constants ]-------------------------------------------------------
+
+#SELECT $STAMP
+  #CASE BS2, BS2E, BS2PE
+    T9600       CON     84
+  #CASE BS2SX, BS2P
+    T9600       CON     240
+#ENDSELECT
+
+Baud        CON     T9600
+
+' RFID R/W Module Commands
+' Number of bytes returned in ()
+RFID_Read      CON    $01  ' Read data from specified address, valid locations 1 to 33 (5)
+RFID_Write      CON    $02  ' Write data to specified address, valid locations 3 to 31 (1)
+RFID_Login      CON    $03  ' Login to tag with password (1)
+RFID_SetPass    CON    $04  ' Change tag's password from old to new (1)
+RFID_Protect    CON    $05  ' Enable/disable password protection (1)
+RFID_Reset      CON    $06  ' Reset tag (1)
+RFID_ReadLegacy    CON    $0F  ' Read unique ID from EM4102 read-only tag (for backwards compatibility with Parallax RFID Card Reader, #28140 and #28340) (12)
+
+' Memory map/address locations for EM4x50 tag
+' Each address holds/returns a 32-bit (4 byte) value
+ADDR_Password  CON    0  ' Password (not readable)
+ADDR_Protect  CON    1  ' Protection Word
+ADDR_Control  CON    2  ' Control Word
+' ADDR 3-31 are User EEPROM area
+ADDR_Serial  CON    32  ' Device Serial Number
+ADDR_DeviceID  CON    33  ' Device Identification
+
+' Status/error return codes
+ERR_OK    CON    $01  ' No errors
+ERR_LIW    CON    $02  ' Did not find a listen window
+ERR_NAK    CON    $03  ' Received a NAK, could be invalid command
+ERR_NAK_OLDPW  CON    $04  ' Received a NAK sending old password (RFID_SetPass), could be incorrect password
+ERR_NAK_NEWPW  CON    $05  ' Received a NAK sending new password (RFID_SetPass)
+ERR_LIW_NEWPW  CON    $06  ' Did not find a listen window after setting new password (RFID_SetPass)
+ERR_PARITY    CON    $07  ' Parity error when reading data
+
+
+' -----[ Variables ]-------------------------------------------------------
+
+buf    VAR    Byte(12)  ' data buffer
+
+idx        VAR     Byte     ' index
+idy    VAR    Byte
+
+' -----[ EEPROM Data ]-----------------------------------------------------
+
+
+' -----[ Initialization ]--------------------------------------------------
+
+Initialize:
+  PAUSE 250  ' let DEBUG open
+  DEBUG CLS  ' clear the screen
+  DEBUG "Parallax RFID Read/Write Module Demo Application", CR,
+        "------------------------------------------------", CR, CR
+
+
+' -----[ Program Code ]----------------------------------------------------
+
+Main:
+  ' Code blocks can be commented/uncommented/rearranged to
+  ' experiment with the available features and operations of the
+  ' Parallax RFID Read/Write Module
+
+  DEBUG "Reading tag's unique serial number..."
+Read_Tag:
+  SEROUT RFID_TX, Baud, ["!RW", RFID_Read, ADDR_Serial]  ' Read tag's serial number
+  SERIN  RFID_RX, Baud, [STR buf\5]          ' Get status byte and data bytes
+  IF buf(0) <> ERR_OK THEN Read_Tag        ' If we get an error, keep trying until the read is successful
+  FOR idx = 1 TO 4                ' Print data
+    DEBUG HEX2 buf(idx)
+  NEXT
+  DEBUG CR
+
+  DEBUG "Reading Legacy tag's unique serial number..."     ' Read unique ID from EM4102 read-only tag
+Read_Legacy:
+  SEROUT RFID_TX, Baud, ["!RW", RFID_ReadLegacy]
+  SERIN  RFID_RX, Baud, [STR buf\12]              ' Get header and data
+  IF buf(0) <> $0A THEN Read_Legacy            ' If we don't receive the correct header, keep trying until we do
+  FOR idx = 1 TO 10                  ' Display the data (ignore final \r byte sent by the reader)
+    DEBUG buf(idx)
+  NEXT
+  DEBUG CR
+
+  DEBUG "Writing and verifying data to tag..."
+Write_Tag:
+ ' SEROUT RFID_TX, Baud, ["!RW", RFID_Write, 3, $FE, $ED, $BE, $EF] ' Write $FEEDBEEF into address 3 (user EEPROM area)
+ SEROUT RFID_TX, Baud, ["!RW", RFID_Write, 3, $FF, $EE, $BB, $EE]
+  SERIN RFID_RX, Baud, [buf(0)]               ' Wait for status byte
+  IF buf(0) <> ERR_OK THEN Write_Tag            ' If we get an error, keep trying until the write is successful
+  DEBUG "Done!", CR
+
+  DEBUG "Reading tag's entire memory contents:", CR
+  FOR idy = 1 TO 33
+Read_Tag2:
+    SEROUT RFID_TX, Baud, ["!RW", RFID_Read, idy]      ' Read data from address location "idy"
+    SERIN RFID_RX, Baud, [STR buf\5]          ' Get status byte and data bytes
+    IF buf(0) <> ERR_OK THEN Read_Tag2          ' If we get an error, keep trying until the read is successful
+    DEBUG DEC2 idy, ": "
+    FOR idx = 1 TO 4                ' Print data
+      DEBUG HEX2 buf(idx)
+    NEXT
+    DEBUG CR                     ' Repeat for address locations 1 to 33
+  NEXT
+
+  ' Login is only required to take advantage of the password protection features
+  ' e.g., set the tag's password, lock/unlock the tag, or read/write the tag (if tag is locked)
+  DEBUG "Logging into the tag..."
+Login:
+  SEROUT RFID_TX, Baud, ["!RW", RFID_Login, REP $00\4]       ' Login to tag with default password of $00000000
+  SERIN RFID_RX, Baud, [buf(0)]               ' Wait for status byte
+  IF buf(0) <> ERR_OK THEN Login            ' If we get an error, keep trying until login is successful
+  DEBUG "Done!", CR
+
+  DEBUG "Changing tag's password..."
+Set_Pass:
+  SEROUT RFID_TX, Baud, ["!RW", RFID_SetPass, REP $00\4, REP $00\4]   ' Change password from old ($00000000) to new ($00000000)
+  SERIN RFID_RX, Baud, [buf(0)]                   ' Wait for status byte
+  IF buf(0) <> ERR_OK THEN Set_Pass                ' If we get an error, keep trying until the password change is successful
+  DEBUG "Done!", CR
+
+  DEBUG "Locking tag..."
+Lock_Tag:
+  SEROUT RFID_TX, Baud, ["!RW", RFID_Protect, 1]   ' Enable read/write password protection of the entire tag
+  SERIN RFID_RX, Baud, [buf(0)]        ' Wait for status byte
+  IF buf(0) <> ERR_OK THEN Lock_Tag       ' If we get an error, keep trying until the function is successful
+  DEBUG "Done!", CR
+
+  DEBUG "Unlocking tag..."
+Unlock_Tag:
+  SEROUT RFID_TX, Baud, ["!RW", RFID_Protect, 0]     ' Disable read/write password protection of the entire tag
+  SERIN RFID_RX, Baud, [buf(0)]        ' Wait for status byte
+  IF buf(0) <> ERR_OK THEN Unlock_Tag       ' If we get an error, keep trying until the function is successful
+  DEBUG "Done!", CR
+
+  DEBUG "Resetting the tag..."
+Reset_Tag:
+  SEROUT RFID_TX, Baud, ["!RW", RFID_Reset]       ' Log out and reset the tag (will require a re-login if trying to access a locked tag after this point)
+  SERIN RFID_RX, Baud, [buf(0)]        ' Wait for status byte
+  IF buf(0) <> ERR_OK THEN Reset_Tag      ' If we get an error, keep trying until the function is successful
+  DEBUG "Done!", CR
+
+  DEBUG "------------------------------------------------", CR
+ PAUSE 1000
+ GOTO Main  ' Do it all over again!
+  END
+
+' -----[ End of File ]----------------------------------------------------

@@ -1,0 +1,112 @@
+' =========================================================================
+'
+'   File...... rfid_rw_test.bs2
+'   Purpose... System-level test code for the Parallax RFID Read/Write Module
+'   Author.... Joe Grand, Grand Idea Studio, Inc. [www.grandideastudio.com]
+'   E-mail.... support@parallax.com
+'   Updated... 15 Dec 2009
+'
+'   {$STAMP BS2}
+'   {$PBASIC 2.5}
+'
+' =========================================================================
+
+
+' -----[ Program Description ]---------------------------------------------
+'
+' This program performs a system-level test of the Parallax RFID Read/
+' Write Module by:
+'
+' 1) Reading tag's unique ID
+' 2) Writing and verifying a block of data to the tag
+
+
+' -----[ I/O Definitions ]-------------------------------------------------
+
+RFID_TX    PIN  14    ' Connects to RFID R/W Module SIN
+RFID_RX    PIN  12    ' Connects to RFID R/W Module SOUT
+
+
+' -----[ Constants ]-------------------------------------------------------
+
+#SELECT $STAMP
+  #CASE BS2, BS2E, BS2PE
+    T9600       CON     84
+  #CASE BS2SX, BS2P
+    T9600       CON     240
+#ENDSELECT
+
+Baud        CON     T9600
+
+' RFID R/W Module Commands
+' Number of bytes returned in ()
+RFID_Read      CON    $01  ' Read data from specified address, valid locations 1 to 33 (5)
+RFID_Write      CON    $02  ' Write data to specified address, valid locations 3 to 31 (1)
+RFID_Login      CON    $03  ' Login to tag with password (1)
+RFID_SetPass    CON    $04  ' Change tag's password from old to new (1)
+RFID_Protect    CON    $05  ' Enable/disable password protection (1)
+RFID_Reset      CON    $06  ' Reset tag (1)
+RFID_ReadLegacy    CON    $0F  ' Read unique ID from EM4102 read-only tag (for backwards compatibility with Parallax RFID Card Reader, #28140 and #28340) (12)
+
+' Memory map/address locations for EM4x50 tag
+' Each address holds/returns a 32-bit (4 byte) value
+ADDR_Password  CON    0  ' Password (not readable)
+ADDR_Protect  CON    1  ' Protection Word
+ADDR_Control  CON    2  ' Control Word
+' ADDR 3-31 are User EEPROM area
+ADDR_Serial  CON    32  ' Device Serial Number
+ADDR_DeviceID  CON    33  ' Device Identification
+
+' Status/error return codes
+ERR_OK    CON    $01  ' No errors
+ERR_LIW    CON    $02  ' Did not find a listen window
+ERR_NAK    CON    $03  ' Received a NAK, could be invalid command
+ERR_NAK_OLDPW  CON    $04  ' Received a NAK sending old password (RFID_SetPass), could be incorrect password
+ERR_NAK_NEWPW  CON    $05  ' Received a NAK sending new password (RFID_SetPass)
+ERR_LIW_NEWPW  CON    $06  ' Did not find a listen window after sending old password (RFID_SetPass)
+ERR_PARITY    CON    $07  ' Parity error when reading data
+
+
+' -----[ Variables ]-------------------------------------------------------
+
+buf    VAR    Byte(12)  ' data buffer
+
+idx        VAR     Byte     ' index
+idy    VAR    Byte
+
+' -----[ EEPROM Data ]-----------------------------------------------------
+
+
+' -----[ Initialization ]--------------------------------------------------
+
+Initialize:
+  PAUSE 250  ' let DEBUG open
+  DEBUG CLS  ' clear the screen
+  DEBUG "Parallax RFID Read/Write Module Test Application", CR,
+        "------------------------------------------------", CR, CR
+
+
+' -----[ Program Code ]----------------------------------------------------
+
+Main:
+  DEBUG "Reading tag's unique serial number..."
+Read_Tag:
+  SEROUT RFID_TX, Baud, ["!RW", RFID_Read, ADDR_Serial]  ' Read tag's serial number
+  SERIN  RFID_RX, Baud, [STR buf\5]          ' Get status byte and data bytes
+  IF buf(0) <> ERR_OK THEN Read_Tag        ' If we get an error, keep trying until the read is successful
+  FOR idx = 1 TO 4                ' Print data
+    DEBUG HEX2 buf(idx)
+  NEXT
+  DEBUG CR
+
+  DEBUG "Writing and verifying data to tag..."
+Write_Tag:
+  SEROUT RFID_TX, Baud, ["!RW", RFID_Write, 3, $FE, $ED, $BE, $EF] ' Write $FEEDBEEF into address 4 (user EEPROM area)
+  SERIN RFID_RX, Baud, [buf(0)]               ' Wait for status byte
+  IF buf(0) <> ERR_OK THEN Write_Tag            ' If we get an error, keep trying until the write is successful
+  DEBUG "Success!", CR
+
+  DEBUG "End of test.", CR
+  END
+
+' -----[ End of File ]----------------------------------------------------
