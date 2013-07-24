@@ -587,7 +587,14 @@ _uno
 
 ORG 0x2100
 
+; This is where the data is stored.
+; We have memory size of 11 bytes, the tag mode (Manchester or BiPhase),
+; and the 11 byte data in EE_RFID_MEMORY.
 
+; What is worthy of note is that the RFID reader no longer works if I change
+; the value of EE_RFID_MEMORY. The BS2 Reader Module no longer detects the
+; emulator unless the values are the following:
+;     0x03, 0x0C, 0x00, 0x00, 0x17, 0x05, 0x05, 0x14, 0x12, 0x12, 0x0C
 EE_MEMORY_SIZE      DE .11
 EE_CLOCKS_PER_BIT   DE .64
 EE_TAG_MODE         DE TAG_MODE_CODING_MANCHESTER

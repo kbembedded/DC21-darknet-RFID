@@ -1,0 +1,142 @@
+' =========================================================================
+'
+'   File....... rfid_print_tag.BS2
+'   Purpose.... RFID Tag Reader
+'   Author..... Nic Breidinger
+'   E-mail.....
+'   Started.... 2013/07/23
+'   Updated....
+'
+'   {$STAMP BS2}
+'   {$PBASIC 2.5}
+'
+' =========================================================================
+
+
+' -----[ Program Description ]---------------------------------------------
+'
+' Reads tags from a Parallax RFID reader and prints it out. This is based
+' on Parallax's demo code for the RFID Reader Module.
+
+
+' -----[ Revision History ]------------------------------------------------
+
+
+' -----[ I/O Definitions ]-------------------------------------------------
+
+Enable          PIN     14                      ' low = reader on
+RX              PIN     12                      ' serial from reader
+Spkr            PIN     2                       ' speaker output
+Latch           PIN     3                       ' lock/latch control
+
+
+' -----[ Constants ]-------------------------------------------------------
+
+#SELECT $STAMP
+  #CASE BS2, BS2E, BS2PE
+    T1200       CON     813
+    T2400       CON     396
+    T4800       CON     188
+    T9600       CON     84
+    T19K2       CON     32
+    TMidi       CON     12
+    T38K4       CON     6
+  #CASE BS2SX, BS2P
+    T1200       CON     2063
+    T2400       CON     1021
+    T4800       CON     500
+    T9600       CON     240
+    T19K2       CON     110
+    TMidi       CON     60
+    T38K4       CON     45
+  #CASE BS2PX
+    T1200       CON     3313
+    T2400       CON     1646
+    T4800       CON     813
+    T9600       CON     396
+    T19K2       CON     188
+    TMidi       CON     108
+    T38K4       CON     84
+#ENDSELECT
+
+SevenBit        CON     $2000
+Inverted        CON     $4000
+Open            CON     $8000
+Baud            CON     T2400
+
+
+#SELECT $STAMP
+  #CASE BS2, BS2E
+    TmAdj       CON     $100                    ' x 1.0 (time adjust)
+    FrAdj       CON     $100                    ' x 1.0 (freq adjust)
+  #CASE BS2SX
+    TmAdj       CON     $280                    ' x 2.5
+    FrAdj       CON     $066                    ' x 0.4
+  #CASE BS2P
+    TmAdj       CON     $3C5                    ' x 3.77
+    FrAdj       CON     $044                    ' x 0.265
+  #CASE BS2PE
+    TmAdj       CON     $100                    ' x 1.0
+    FrAdj       CON     $0AA                    ' x 0.665
+  #CASE BS2PX
+    TmAdj       CON     $607                    ' x 6.03
+    FrAdj       CON     $2A                     ' x 0.166
+#ENDSELECT
+
+
+LastTag         CON     3
+
+
+#DEFINE __No_SPRAM = ($STAMP < BS2P)            ' does module have SPRAM?
+
+
+' -----[ Variables ]-------------------------------------------------------
+
+#IF __No_SPRAM #THEN
+  buf           VAR     Byte(10)                ' RFID bytes buffer
+#ELSE
+  chkChar       VAR     Byte                    ' character to test
+#ENDIF
+
+tagNum          VAR     Nib                     ' from EEPROM table
+idx             VAR     Byte                    ' tag byte index
+char            VAR     Byte                    ' character from table
+
+
+' -----[ EEPROM Data ]-----------------------------------------------------
+
+
+' -----[ Initialization ]--------------------------------------------------
+
+Reset:
+  HIGH Enable                                   ' turn of RFID reader
+  LOW Latch                                     ' lock the door!
+
+
+' -----[ Program Code ]----------------------------------------------------
+
+Main:
+  LOW Enable                                    ' activate the reader
+  #IF __No_SPRAM #THEN
+    SERIN RX, T2400, [WAIT($0A), STR buf\10]    ' wait for hdr + ID
+  #ELSE
+    SERIN RX, T2400, [WAIT($0A), SPSTR 10]
+  #ENDIF
+  HIGH Enable                                   ' deactivate reader
+
+  DEBUG "---------", CR
+
+  FOR idx = 0 TO 9                              ' print bytes in tag
+    #IF __No_SPRAM #THEN
+      DEBUG buf(idx)
+    #ELSE
+      GET idx, chkChar
+      DEBUG chkChar
+    #ENDIF
+  NEXT
+
+  DEBUG CR
+
+  PAUSE 1000                                    ' Read interval of 1s
+
+  GOTO Main
