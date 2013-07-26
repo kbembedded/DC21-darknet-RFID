@@ -17,6 +17,7 @@
 
 	GLOBAL	_initRF, _ISRTimer1RF
 	GLOBAL  _txManchester1, _txManchester0, _txBiphase1, _txBiphase0
+    GLOBAL  _drive0, _drive1
 
 
 
@@ -249,6 +250,29 @@ _txBiphase0
 	RF_TOGGLE
 
 	return
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;                                                                          ;;;
+;;                                                                            ;;
+;    Functions:  _drive0 and _drive1                                           ;
+;    Desc.:     Transmit a 1/2 bit time 0 or 1                                 ;
+;    Vars:                                                                     ;
+;                                                                              ;
+;    Notes:                                                                    ;
+;;                                                                            ;;
+;;;                                                                          ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+_drive0
+
+    WAIT_RF_IS_READY
+    RF_0
+    RETURN
+
+_drive1
+
+    WAIT_RF_IS_READY
+    RF_1
+    RETURN
 
 
 	END

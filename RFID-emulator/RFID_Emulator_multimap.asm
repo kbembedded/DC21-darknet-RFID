@@ -23,6 +23,7 @@
 	EXTERN	_initIO
 	EXTERN	_writeEEPROM, _readEEPROM , _pauseX10uS, _pauseX1mS
 	EXTERN  _initRF, _ISRTimer1RF, _txManchester1, _txManchester0, _txBiphase1, _txBiphase0
+    EXTERN  _drive0, _drive1
 	EXTERN	PARAM1
 
 	EXTERN 	FLAGS
@@ -83,6 +84,35 @@ _start_PLAY
 	
 
 _main
+    ; We need to send a listen window before anything else
+    ; Most EM4450/EM4150 receivers will only listen to 64+-10 RF periods
+    ;   NOT bit times.  If we wait too long we could miss sync
+    ; Standard EM4100s dont care how long it takes us to send out data
+
+    CALL _send_LIW
+    CALL _send_LIW
+    CALL _play_em4100
+    GOTO _main
+
+_send_LIW
+    CALL _drive1
+    CALL _drive0
+
+    CALL _drive1
+    CALL _drive1
+    CALL _drive1
+    CALL _drive1
+    CALL _drive0
+    CALL _drive0
+
+    CALL _drive1
+    CALL _drive1
+
+    RETURN
+
+
+
+_play_em4100
 
 	;Cabecera
 	CALL	_tx1
@@ -134,7 +164,7 @@ _bitloop
 
 
 
-	goto 	_main
+	RETURN
 
 
 _tx1
