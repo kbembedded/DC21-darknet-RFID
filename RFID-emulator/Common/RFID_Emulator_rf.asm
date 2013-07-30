@@ -62,8 +62,23 @@ _initRF
 
 
 	MOVWF	TMP_CLOCKS_PER_BIT	; Backup of the CLOCK_PER_BIT value stored in W
+    
+    ;MOVLW  b'00010100'         ; Comparator Output Inverted. CIN- == GP1 ; CIN+ == CVref
+    MOVLW   b'00000011'         ; Comparator Output NOT Inverted. CIN- == GP1 ; CIN+ == CVref; COUT PIN enabled
+    MOVWF   CMCON0
 
-	BANKSEL	PIE1				; Bank 1
+    BANKSEL TRISIO              ; Bank 1
+
+    MOVLW   b'00000010'         ; GP1 as analog input. Rest as digital
+    MOVWF   ANSEL
+
+    ;MOVLW  b'10100011'         ; Voltage Regulator ON; Low range; 0.625 volts (Vdd=5V)
+    MOVLW   b'10100000'         ; Voltage Regulator ON; Low range; 0.04 Vdd
+    ;MOVLW  b'10000000'         ; Voltage Regulator ON; HIGH range; 0.750 Vdd
+    MOVWF   VRCON
+
+    BSF     DEMODULATOR_TRIS    ; Demodulator pin as input
+	;BANKSEL	PIE1				; Bank 1
 
 	BSF		COIL1_TRIS			; Coil pins as input
 	BSF		COIL2_TRIS			

@@ -55,8 +55,8 @@ _initIO
 	BCF		LED1_TRIS					; LEDs as output
 	BCF		LED2_TRIS
 
-	BSF		BUTTON1_TRIS				; Buttons as input
-	BSF		BUTTON2_TRIS
+	BCF		COUTPIN_TRIS                   ; Cout for testing
+	;BSF		BUTTON2_TRIS
 	
 	CLRF	ANSEL 						; GPIO as digital IOs
 

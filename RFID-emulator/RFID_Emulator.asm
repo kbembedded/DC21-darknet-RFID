@@ -40,7 +40,7 @@ GLOBAL  FLAGS
 #DEFINE PROCESS_BASE_BIT   4 ; Flag: Are we ready to process?
 #DEFINE BIT                5 ; Flag: Does this bit need to be demodulated?
 #DEFINE RECORD             0 ; Flag: Are we writing to RFID Memory?
-#DEFINE CAPTURE_MODE       7
+#DEFINE CAPTURE_MODE       7 ; Flag: If set, we are not using clone function
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;                                                                          ;;;
@@ -141,7 +141,11 @@ _start
 
     MOVLW   .50                 ; Wait for debouncing
     CALL    _pauseX10uS
-    BUTTON1_GOTO_IF_NOT_PRESSED _start_PLAY
+    ;BUTTON1_GOTO_IF_NOT_PRESSED _start_PLAY
+    ;Current PCB rev does not support cloning in the way that this code base
+    ; does.  There is no button on board to put in "clone" mode, a real
+    ; EM4095 base station will eventually be needed for writing to the card
+    GOTO _start_PLAY
 
 
     CLRF    FLAGS2
@@ -449,8 +453,8 @@ _initRF_RX
 
 
 
-    ;MOVLW  b'00010100'         ; Comparator Output Inverted. CIN- == GP0 ; CIN+ == CVref
-    MOVLW   b'00000011'         ; Comparator Output NOT Inverted. CIN- == GP0 ; CIN+ == CVref; COUT PIN enabled
+    ;MOVLW  b'00010100'         ; Comparator Output Inverted. CIN- == GP1 ; CIN+ == CVref
+    MOVLW   b'00000011'         ; Comparator Output NOT Inverted. CIN- == GP1 ; CIN+ == CVref; COUT PIN enabled
     MOVWF   CMCON0
 
     BANKSEL TRISIO              ; Bank 1
@@ -469,7 +473,7 @@ _initRF_RX
     BSF     COIL1_TRIS          ; Coil pins as input
     BSF     COIL2_TRIS
 
-BCF     TRISIO, GP2         ; TESTING. COUT salida
+    BCF     TRISIO, GP2         ; Set COUT pin to output
 
     BANKSEL GPIO                ; Bank 0
 
@@ -590,18 +594,14 @@ ORG 0x2100
 ; This is where the data is stored.
 ; We have memory size of 11 bytes, the tag mode (Manchester or BiPhase),
 ; and the 11 byte data in EE_RFID_MEMORY.
-
-; What is worthy of note is that the RFID reader no longer works if I change
-; the value of EE_RFID_MEMORY. The BS2 Reader Module no longer detects the
-; emulator unless the values are the following:
-;     0x03, 0x0C, 0x00, 0x00, 0x17, 0x05, 0x05, 0x14, 0x12, 0x12, 0x0C
+; We use 11 bytes, left 0 padded, one for each 5bits that would be transmitted
+; on a single row.  This is more human readable than putting all of the bits
+; together and ending up with a string of nonsense.
 EE_MEMORY_SIZE      DE .11
 EE_CLOCKS_PER_BIT   DE .64
 EE_TAG_MODE         DE TAG_MODE_CODING_MANCHESTER
-;EE_RFID_MEMORY     DE  b'11111111' , b'10001100' , b'01100011' , b'00011000', b'11000110' , b'00110001' , b'10001100' , b'01100000'
-;EE_RFID_MEMORY     DE  b'11111111' , b'11111111' , b'11111111' , b'11111111', b'11111111' , b'11111111' , b'11111111' , b'11111111'
-EE_RFID_MEMORY      DE  0x03, 0x0C, 0x00, 0x00, 0x17, 0x05, 0x05, 0x14, 0x12, 0x12, 0x0C
+EE_RFID_MEMORY      DE  0x0c, 0x05, 0x0f, 0x0a, 0x0c, 0x1d, 0x0c, 0x1d, 0x0c, 0x12, 0x12
 
 
-    END
+END
 

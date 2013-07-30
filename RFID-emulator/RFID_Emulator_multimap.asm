@@ -30,6 +30,8 @@
 
 	GLOBAL	_start_PLAY
 
+    #DEFINE CAPTURE_MODE       7 ; Flag: If set, we are not using clone function
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;                                                                          ;;;
@@ -80,7 +82,7 @@ _start_PLAY
 	MOVFW	CONFIG_CLOCKS_PER_BIT	
 	CALL	_initRF					; Init RF
 
-	BSF		FLAGS, 7
+	BSF		FLAGS, CAPTURE_MODE
 	
 
 _main
@@ -89,8 +91,6 @@ _main
     ;   NOT bit times.  If we wait too long we could miss sync
     ; Standard EM4100s dont care how long it takes us to send out data
 
-    CALL _send_LIW
-    CALL _send_LIW
     CALL _play_em4100
     GOTO _main
 
@@ -107,8 +107,51 @@ _send_LIW
 
     CALL _drive1
     CALL _drive1
+    ;Right here is where we want to check to see if the base station is
+    ; trying to talk to us.  CMCON0 COUT bit should be a 1, if its a 0
+    ; we need to stop transmitting, and listen to data coming in
+    ;BTFSS CMCON0,COUT
+    
 
     RETURN
+
+_send_ACK
+    CALL _drive1
+    CALL _drive0
+
+    CALL _drive1
+    CALL _drive1
+    CALL _drive1
+
+    CALL _drive0
+
+    CALL _drive1
+    CALL _drive1
+    CALL _drive1
+
+    CALL _drive0
+
+    RETURN
+
+_send_NAK
+    CALL _drive1
+    CALL _drive0
+
+    CALL _drive1
+    CALL _drive1
+    CALL _drive1
+
+    CALL _drive0
+
+    CALL _drive1
+    CALL _drive1
+
+    CALL _drive0
+    CALL _drive1
+
+    RETURN
+
+
 
 
 
