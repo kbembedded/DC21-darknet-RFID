@@ -7,4 +7,4 @@ nbproject/private
 *.map
 .DS_Store
 *.mk
-nbproject/Makefile-*
+RFID_emulator.X/nbproject/Makefile-*
