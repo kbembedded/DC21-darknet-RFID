@@ -1,6 +1,10 @@
 DC21-darknet-RFID
 =================
 
+A Note to Those Who Bought the Kits at DEF CON:  This project will be on a short hiatus, I have some personal matters to attend to.  Rest assured, I will implement all of the functionality I originally imagined.  I am planning to continue development before the end of the month.  If anyone steps in and decides to work on it, awesome, send me patches and I will put them in for others.
+
+Send any quesions to kris@kbembedded.com
+
 Software, schematics, board, etc. for the DEF CON21 darknet ARG in the HHV
 
 This project is based on the RFID_Emulator from http://www.kukata86.com/en/description-and-development-RFID-emulator
