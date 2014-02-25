@@ -12,7 +12,7 @@
 #include "../Common/RFID_Emulator_misc.inc"
 #include "../Common/RFID_Emulator_rf.inc"
 
-__CONFIG _CP_ON & _CPD_OFF & _WDT_OFF & _BOD_OFF & _PWRTE_ON & _INTRC_OSC_NOCLKOUT & _MCLRE_ON & _IESO_OFF & _FCMEN_OFF
+__CONFIG _CPD_OFF & _WDT_OFF & _BOD_OFF & _PWRTE_ON & _INTRC_OSC_NOCLKOUT & _MCLRE_ON & _IESO_OFF & _FCMEN_OFF
 
 EXTERN  _initIO
 EXTERN  _pauseX10uS, _pauseX1mS
