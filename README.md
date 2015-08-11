@@ -1,7 +1,7 @@
 DC21-darknet-RFID
 =================
 
-A Note to Those Who Bought the Kits at DEF CON:  This project will be on a short hiatus, I have some personal matters to attend to.  Rest assured, I will implement all of the functionality I originally imagined.  I am planning to continue development before the end of the month.  If anyone steps in and decides to work on it, awesome, send me patches and I will put them in for others.
+Note: This project is deprecated in favor of the EM4100_Cloner available here: https://github.com/kbembedded/EM4100_Cloner
 
 Send any quesions to kris@kbembedded.com
 
